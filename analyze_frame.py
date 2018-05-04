@@ -30,7 +30,7 @@ class boxResult:
 
 
 # Hardcoded model hyperparameters in for now, may remove
-def model_factory(json_path, weight_path):
+def modelFactory(json_path, weight_path):
     loss = 'categorical_crossentropy'
     num_units_first_dense = 986
     dropout_rate = 0.3867433627389078
@@ -94,15 +94,16 @@ def modelPredict(model, predictionImage, tlc, currentScale):
     return temp
 
 
-
-
-# Input: Full Image. List of scales to analyze image at. Window size for sliding window
+# Input: model to use to analyze window. [model]
+#        Image.[image]
+#        List of scales to analyze image at.[scales]
+#        Window size for sliding window [window_size]
 #
 #
 # Output: Completely unfiltered list of predictions from model
 #
 #
-def get_predictions(model, image, scales, window_size ):
+def getPredictions(model, image, scales, window_size):
     img_pyramid = []
 
     for scale in scales:
@@ -123,7 +124,8 @@ def get_predictions(model, image, scales, window_size ):
         print('full height/width: ', img_height, ',  ', img_width)
 
         # !!! Current methodology leaves SLIGHT gaps at bottom of image, revamp later on
-        # !!! Additionally, we will need to make adjustments here if we make the aspect ratio update
+        # !!! Additionally, we will need to make adjustments here if we make
+        #     decide to include different non-square aspect ratios
         #
         if img_height > window_size and img_width > window_size:
             for tlc_y in range(0, (img_height - window_size), int(np.round(window_size * stride_factor))):
@@ -136,3 +138,87 @@ def get_predictions(model, image, scales, window_size ):
                 predictions.append(modelPredict(model, window_img, (img_width - window_size, tlc_y), pyr_layer['scale']))
 
     return predictions
+
+#
+#
+#
+#
+def nonMaxSuppression(predictions, conf_thresh, overlap_thresh):
+    filtered_preds = [pred for pred in predictions if pred.class_pred == 'car' and pred.confidence > conf_thresh]
+    if not filtered_preds:
+        return []
+
+    # (x1, y1) is the top-left corners
+    # (x2, y2) are the bottom-right corners
+    x1 = np.array([pred.x for pred in filtered_preds])
+    y1 = np.array([pred.y for pred in filtered_preds])
+    x2 = np.array([pred.x + pred.width for pred in filtered_preds])
+    y2 = np.array([pred.y + pred.height for pred in filtered_preds])
+
+
+    # Get vector of areas, find indices of  boxes in order of theikr "height" location on the image
+    areas = (x2 - x1) * (y2 - y1)
+    indices = np.argsort(y2)
+
+    # Keep looping while some indices still remain in the indices list
+    pick = []
+    while len(indices) > 0:
+        last = len(indices) - 1
+        index = indices[last]
+        pick.append(indices[-1])
+
+        # Find largest (x, y) coordinates for the start of the bounding box and
+        # smallest (x, y) coordinates for the end of the bounding box
+        xx1 = np.maximum(x1[index], x1[indices[:last]])
+        yy1 = np.maximum(y1[index], y1[indices[:last]])
+        xx2 = np.minimum(x2[index], x2[indices[:last]])
+        yy2 = np.minimum(y2[index], y2[indices[:last]])
+
+        # Tutorial mentions something about  a  "+ 1", but I don't really get it
+        w = np.maximum(0, xx2 - xx1)
+        h = np.maximum(0, yy2 - yy1)
+
+        overlap = (w * h) / areas[indices[:last]]
+        indices = np.delete(indices, np.concatenate(([last], np.where(overlap > overlap_thresh)[0])))
+
+    # print(predictions)
+    return [pred for i, pred in enumerate(filtered_preds) if i in pick]
+
+
+
+# Now all of the methods are defikned. We will first just make this program
+# output the detections for a single image, then refactor to be inside of a
+# class so that the model doesn't need to reload every time that an image is analyzed
+#
+image_name = './test_images/single_far.jpg'
+window_size = 128
+stride_factor = .25
+scales = [1, 1.2,1.5,1.7,2]
+conf_threshold = .98
+overlap_threshold = .3  # typical values between .3 and .5 according to internet
+
+
+model = modelFactory(json_path, weights_path)
+image = cv.imread(image_name)
+predictions = getPredictions(model, image, scales, window_size)
+
+suppressed_preds = nonMaxSuppression(predictions, conf_threshold, overlap_threshold)
+
+just_car_preds = [pred for pred in predictions if pred.class_pred == 'car' and pred.confidence > conf_threshold]
+
+font = cv.FONT_HERSHEY_SIMPLEX
+
+for box in suppressed_preds:
+    cv.rectangle(image,(box.x,box.y),(box.x+box.width,box.y+box.height),(255, 0, 0), 2)
+    cv.putText(image, box.class_pred + ' ' + str(box.confidence), (box.x, box.y), font, .4, (255, 255, 255), 1, cv.LINE_AA)
+    cv.imshow('Windows', image)
+    cv.waitKey(0)
+
+
+cv.destroyAllWindows()
+
+
+
+
+
+#
