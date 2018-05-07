@@ -6,6 +6,7 @@ from keras import backend as K
 from keras.layers import Dropout, Flatten, Dense
 
 import numpy as np
+import os
 from sklearn.metrics import confusion_matrix
 import itertools
 import matplotlib.pyplot as plt
@@ -141,8 +142,6 @@ def getPredictions(model, image, scales, window_size):
 
 #
 #
-#
-#
 def nonMaxSuppression(predictions, conf_thresh, overlap_thresh):
     filtered_preds = [pred for pred in predictions if pred.class_pred == 'car' and pred.confidence > conf_thresh]
     if not filtered_preds:
@@ -190,32 +189,38 @@ def nonMaxSuppression(predictions, conf_thresh, overlap_thresh):
 # output the detections for a single image, then refactor to be inside of a
 # class so that the model doesn't need to reload every time that an image is analyzed
 #
-image_name = './test_images/single_far.jpg'
+out_dir = './out_sliding_75stride_95thresh/'
+data_dir = './OrderedBusData/'
+
 window_size = 128
-stride_factor = .25
-scales = [1, 1.2,1.5,1.7,2]
-conf_threshold = .98
+stride_factor = .75
+scales = [1]
+conf_threshold = .92
 overlap_threshold = .3  # typical values between .3 and .5 according to internet
 
-
 model = modelFactory(json_path, weights_path)
-image = cv.imread(image_name)
-predictions = getPredictions(model, image, scales, window_size)
 
-suppressed_preds = nonMaxSuppression(predictions, conf_threshold, overlap_threshold)
+img_names = os.listdir(data_dir)
 
-just_car_preds = [pred for pred in predictions if pred.class_pred == 'car' and pred.confidence > conf_threshold]
+for image_name in img_names:
+    image = cv.imread(data_dir + image_name)
+    predictions = getPredictions(model, image, scales, window_size)
 
-font = cv.FONT_HERSHEY_SIMPLEX
+    suppressed_preds = nonMaxSuppression(predictions, conf_threshold, overlap_threshold)
+    just_car_preds = [pred for pred in predictions if pred.class_pred == 'car' and pred.confidence > conf_threshold]
 
-for box in suppressed_preds:
-    cv.rectangle(image,(box.x,box.y),(box.x+box.width,box.y+box.height),(255, 0, 0), 2)
-    cv.putText(image, box.class_pred + ' ' + str(box.confidence), (box.x, box.y), font, .4, (255, 255, 255), 1, cv.LINE_AA)
-    cv.imshow('Windows', image)
-    cv.waitKey(0)
+    font = cv.FONT_HERSHEY_SIMPLEX
+
+    for box in suppressed_preds:
+        cv.rectangle(image,(box.x,box.y),(box.x+box.width,box.y+box.height),(255, 0, 0), 2)
+        cv.putText(image, box.class_pred + ' ' + str(box.confidence), (box.x, box.y), font, .4, (255, 255, 255), 1, cv.LINE_AA)
+        cv.imwrite(out_dir + image_name, image)
+
+    # cv.imshow('Windows', image)
+    # cv.waitKey(0)
 
 
-cv.destroyAllWindows()
+# cv.destroyAllWindows()
 
 
 

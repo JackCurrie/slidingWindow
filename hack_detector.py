@@ -97,13 +97,22 @@ def makePredictions(model, image, percent_top_shave, num_bottom_splits):
     results = []
     for tlc_x in range(0, img_width - split_width, split_width):
         print('X: ', tlc_x)
-        img = image[upper_bound:(upper_bound + split_height), tlc_x:(tlc_x + split_width), :]
-        scaled_img = cv.resize(img, None, fx=MODEL_INPUT_SHAPE/img.shape[1], fy=MODEL_INPUT_SHAPE/img.shape[0], interpolation=cv.INTER_CUBIC)
+        split = image[upper_bound:(upper_bound + split_height), tlc_x:(tlc_x + split_width), :]
 
-        pred = model.predict(np.array([scaled_img,]))
-        class_pred = np.argmax(pred)
-        result = boxResult(x=tlc_x, y=upper_bound, height=split_height, width=split_width, class_pred=class_pred, confidence=pred[0][class_pred])
-        results.append(result)
+        # For each split, we are going to try to split the img in two vertically,
+        # hoping to minimize the distortions of the aspect ratio and whatnot
+        split_imgs = []
+        split_imgs.append({'x': tlc_x, 'y':upper_bound, 'img': split[0:int((upper_bound+split_height)/2), 0:split_width, :]})
+        split_imgs.append({'x':tlc_x, 'y': int(upper_bound+(split_height/2)),  'img': split[int((upper_bound+split_height)/2):, 0:split_width, :]})
+
+        for split_img in split_imgs:
+            img = split_img['img']
+
+            scaled_img = cv.resize(img, None, fx=MODEL_INPUT_SHAPE/img.shape[1], fy=MODEL_INPUT_SHAPE/img.shape[0], interpolation=cv.INTER_CUBIC)
+            pred = model.predict(np.array([scaled_img,]))
+            class_pred = np.argmax(pred)
+            result = boxResult(x=split_img['x'], y=split_img['y'], height=int(split_height/len(split_imgs)), width=split_width, class_pred=class_pred, confidence=pred[0][class_pred])
+            results.append(result)
 
     return results
 
@@ -115,7 +124,7 @@ def makePredictions(model, image, percent_top_shave, num_bottom_splits):
 # Then this program will intake videos, and output the individual frames
 #
 model = modelFactory(json_path, weights_path)
-image_name = './test_images/single_far.jpg'
+image_name = './OrderedBusData/image850.jpg'
 conf_threshold = .98
 
 image = cv.imread(image_name)
@@ -127,6 +136,10 @@ for res in results:
     else:
         res.class_pred = _NON_CAR
 
+
+print(len(results))
+
+#    db.set_trace()
 
 
 font = cv.FONT_HERSHEY_SIMPLEX
