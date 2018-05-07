@@ -72,9 +72,6 @@ def modelPredict(model, predictionImage, tlc, currentScale):
     img_height = predictionImage.shape[0]
     img_width = predictionImage.shape[1]
 
-    # !!! I AM NOT SURE IF THIS IS SUFFICIENT/CORRECT PRE-PROCESSING
-    #      - Also, if we come back and do some extra aspect ratio stuff!!! This will need to be changed
-    #
     predictionImage = np.divide(predictionImage, 255)
     result = model.predict( np.array([predictionImage,]))
     confidence = np.max(result[0])
@@ -185,7 +182,7 @@ def nonMaxSuppression(predictions, conf_thresh, overlap_thresh):
 
 
 
-# Now all of the methods are defikned. We will first just make this program
+# Now all of the methods are defined. We will first just make this program
 # output the detections for a single image, then refactor to be inside of a
 # class so that the model doesn't need to reload every time that an image is analyzed
 #

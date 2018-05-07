@@ -139,8 +139,6 @@ for res in results:
 
 print(len(results))
 
-#    db.set_trace()
-
 
 font = cv.FONT_HERSHEY_SIMPLEX
 for box in results:
@@ -150,8 +148,6 @@ for box in results:
     cv.waitKey(0)
 
 
-
-
-
-
-#
+# Results: This didn't work particularly well, though that is the fault of our detector
+#          There seems to be something about the aspect ratio distortion imposed upon the
+#          images to fit them into the model that creates many false negatives. 
